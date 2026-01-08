@@ -211,9 +211,10 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
             
             # Decision making
             if features:
-                # Check for pure Fibonacci alerts first
+                # Check for pure Fibonacci alerts first - LOOSEN criteria
                 fib_features = [f for f in features if f.module == 'fibonacci']
-                if fib_features and len(fib_features) >= 2:
+                # Changed from >= 2 to >= 1 to catch more fib alerts
+                if fib_features and len(fib_features) >= 1:
                     # Create pure Fibonacci alert
                     fib_alert = {
                         'symbol': symbol,
