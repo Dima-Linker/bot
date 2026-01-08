@@ -22,24 +22,30 @@ class Phase1Selector:
     """Simple selector for immediate diversity improvement with rotation"""
     
     def __init__(self):
-        # Phase 1 caps
+        # Phase 1 caps - adjusted for better balance
         self.MAX_ALERTS_PER_SYMBOL_PER_SCAN = 1
         self.TOPIC_CAPS = {
-            'COMBO': 5,
-            'IDEA': 6, 
-            'FIBONACCI': 10,
-            'LIQUIDITY': 10,
-            'PUMP': 6
+            'COMBO': 4,      # Reduced from 5
+            'IDEA': 5,       # Reduced from 6
+            'FIBONACCI': 6,  # Increased from 10 (more focused)
+            'LIQUIDITY': 6,  # Increased from 10 (more focused)
+            'PUMP': 4        # Reduced from 6
         }
-        self.GLOBAL_MAX = 20
+        self.GLOBAL_MAX = 18  # Reduced from 20 for better quality focus
     
     def extract_topic_from_decision(self, decision: Dict) -> str:
         """Extract correct topic from decision object"""
         signal_type = decision.get('type', '').upper()
         message_type = decision.get('message_type', '').upper()
+        score = decision.get('score_total', 0)
+        reasons = decision.get('reasons', [])
         
         # Priority: explicit message type > signal type
         if 'TRADE' in message_type or signal_type == 'COMBO':
+            # Check if this is actually a strong Fibonacci signal misclassified as COMBO
+            fib_indicators = sum(1 for reason in reasons if 'fib' in reason.lower() or 'golden' in reason.lower())
+            if fib_indicators >= 2 and score >= 350:
+                return 'FIBONACCI'
             return 'COMBO'
         elif 'WATCHLIST' in message_type or signal_type == 'IDEA':
             return 'IDEA'
@@ -50,9 +56,17 @@ class Phase1Selector:
         elif 'PUMP' in signal_type:
             return 'PUMP'
         else:
-            # Fallback based on score
-            score = decision.get('score_total', 0)
-            return 'COMBO' if score >= 300 else 'IDEA'
+            # Enhanced fallback logic based on score and content
+            fib_indicators = sum(1 for reason in reasons if 'fib' in reason.lower() or 'golden' in reason.lower())
+            
+            if fib_indicators >= 2 and score >= 320:
+                return 'FIBONACCI'
+            elif score >= 350:
+                return 'COMBO'
+            elif score >= 250:
+                return 'IDEA'
+            else:
+                return 'IDEA'  # Default to IDEA for lower scores
     
     def select_signals_phase1(self, raw_decisions: List[Dict], repo=None, user_id: Optional[str] = None) -> List[Dict]:
         """
