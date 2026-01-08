@@ -22,6 +22,7 @@ from modules import fibonacci
 from modules import rsi_divergence
 from modules import macd
 from modules import smc
+from modules import pump
 from bot.handlers import setup_handlers
 
 # Load environment variables
@@ -100,7 +101,8 @@ def main():
                         'fibonacci': fibonacci,
                         'rsi_divergence': rsi_divergence,
                         'macd': macd,
-                        'smc': smc
+                        'smc': smc,
+                        'pump': pump
                     }
                     
                     run_scan_for_user(scanner_repo, u, scanner_bitget, telegram_send_fn, modules_registry)

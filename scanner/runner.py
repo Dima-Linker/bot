@@ -231,6 +231,44 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
                     all_raw_decisions.append(fib_alert)
                     continue  # Skip regular decision logic for pure fib alerts
                 
+                # NEW: Check for pure Liquidity alerts
+                liq_features = [f for f in features if f.module == 'smc']
+                if liq_features and len(liq_features) >= 1:
+                    # Create pure Liquidity alert
+                    liq_alert = {
+                        'symbol': symbol,
+                        'timeframe': tf,
+                        'type': 'LIQUIDITY',  # Explicit LIQUIDITY type
+                        'message_type': 'LIQ_ALERT',  # Dedicated alert type
+                        'score_total': sum(f.score for f in liq_features[:2]),
+                        'side': liq_features[0].direction,
+                        'reasons': [f.reasons[0] if f.reasons else f"Liquidity event at {f.event}" for f in liq_features[:2]],
+                        'levels': {k: v for f in liq_features for k, v in f.levels.items()},
+                        'setup_id': f"liq_{symbol}_{tf}_{int(time.time())}"
+                    }
+                    print(f"[LIQ-ALERT] {symbol} {tf} score={liq_alert['score_total']}")
+                    all_raw_decisions.append(liq_alert)
+                    continue  # Skip regular decision logic for pure liq alerts
+                
+                # NEW: Check for pure Pump alerts  
+                pump_features = [f for f in features if f.module == 'pump']
+                if pump_features and len(pump_features) >= 1:
+                    # Create pure Pump alert
+                    pump_alert = {
+                        'symbol': symbol,
+                        'timeframe': tf,
+                        'type': 'PUMP',  # Explicit PUMP type
+                        'message_type': 'PUMP_ALERT',  # Dedicated alert type
+                        'score_total': sum(f.score for f in pump_features[:2]),
+                        'side': pump_features[0].direction,
+                        'reasons': [f.reasons[0] if f.reasons else f"Pump detected: {f.event}" for f in pump_features[:2]],
+                        'levels': {k: v for f in pump_features for k, v in f.levels.items()},
+                        'setup_id': f"pump_{symbol}_{tf}_{int(time.time())}"
+                    }
+                    print(f"[PUMP-ALERT] {symbol} {tf} score={pump_alert['score_total']}")
+                    all_raw_decisions.append(pump_alert)
+                    continue  # Skip regular decision logic for pure pump alerts
+                
                 # Use the new state-based decision engine with IDEA vs TRADE for non-Fib setups
                 decision = decide_signal_with_states(features, combo_min_score, thread_repo, tg_user_id, settings.get('preset', 'normal'))
                 if decision:
@@ -264,8 +302,8 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     decisions_combo = len([d for d in all_raw_decisions if d.get('type') == 'COMBO'])
     decisions_idea = len([d for d in all_raw_decisions if d.get('type') == 'IDEA'])
     alerts_fib = len([d for d in all_raw_decisions if d.get('message_type') == 'FIB_ALERT'])
-    alerts_liq = len([d for d in all_raw_decisions if d.get('type') == 'LIQUIDITY'])
-    alerts_pump = len([d for d in all_raw_decisions if d.get('type') == 'PUMP'])
+    alerts_liq = len([d for d in all_raw_decisions if d.get('message_type') == 'LIQ_ALERT'])
+    alerts_pump = len([d for d in all_raw_decisions if d.get('message_type') == 'PUMP_ALERT'])
     
     print(f"[DEBUG-COUNT] decisions_found: combo={decisions_combo} idea={decisions_idea}")
     print(f"[DEBUG-COUNT] alerts_found: fib_alert={alerts_fib} liq_alert={alerts_liq} pump_alert={alerts_pump}")
@@ -283,8 +321,10 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     selected_combo = len([d for d in selected_decisions if d.get('type') == 'COMBO'])
     selected_idea = len([d for d in selected_decisions if d.get('type') == 'IDEA'])
     selected_fib = len([d for d in selected_decisions if d.get('message_type') == 'FIB_ALERT'])
+    selected_liq = len([d for d in selected_decisions if d.get('message_type') == 'LIQ_ALERT'])
+    selected_pump = len([d for d in selected_decisions if d.get('message_type') == 'PUMP_ALERT'])
     
-    print(f"[DEBUG-SELECTED] selected: combo={selected_combo} idea={selected_idea} fib_alert={selected_fib}")
+    print(f"[DEBUG-SELECTED] selected: combo={selected_combo} idea={selected_idea} fib_alert={selected_fib} liq_alert={selected_liq} pump_alert={selected_pump}")
     
     # SEND ONLY SELECTED DECISIONS
     print(f"[DEBUG] Starting to send {len(selected_decisions)} selected decisions...")
