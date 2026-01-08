@@ -232,3 +232,25 @@ class Repo:
             (tg_user_id, key, expires_at),
         )
         self.conn.commit()
+
+    # ---------- scan cursor ----------
+    def get_cursor(self, user_id: str) -> int:
+        """Get current scan cursor position for user"""
+        cur = self.conn.execute(
+            'SELECT idx FROM scan_cursor WHERE user_id = ?', 
+            (user_id,)
+        )
+        row = cur.fetchone()
+        return int(row['idx']) if row else 0
+
+    def set_cursor(self, user_id: str, idx: int) -> None:
+        """Set scan cursor position for user"""
+        now = int(time.time())
+        self.conn.execute(
+            '''INSERT INTO scan_cursor(user_id, idx, updated_at) 
+               VALUES(?, ?, ?) 
+               ON CONFLICT(user_id) DO UPDATE SET 
+               idx=excluded.idx, updated_at=excluded.updated_at''',
+            (user_id, idx, now)
+        )
+        self.conn.commit()

@@ -54,3 +54,10 @@ ON active_setups(status);
 
 CREATE INDEX IF NOT EXISTS idx_active_setups_expires 
 ON active_setups(expires_at);
+
+-- Scan cursor table for chunking
+CREATE TABLE IF NOT EXISTS scan_cursor (
+  user_id TEXT PRIMARY KEY,
+  idx INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);

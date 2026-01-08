@@ -21,8 +21,21 @@ def reduce_features(features, max_per_module=3):
         reduced.extend(arr_sorted[:max_per_module])
     return reduced
 
+def get_symbol_chunk(symbols, start_idx, chunk_size):
+    """Get a chunk of symbols for round-robin scanning"""
+    n = len(symbols)
+    end_idx = start_idx + chunk_size
+    if end_idx <= n:
+        chunk = symbols[start_idx:end_idx]
+        next_idx = end_idx % n
+    else:
+        chunk = symbols[start_idx:] + symbols[:end_idx - n]
+        next_idx = end_idx - n
+    return chunk, next_idx
+
 def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_registry: dict):
-    print(f"[SCAN] start {time.time()}")
+    start_time = time.time()  # Track scan start time for duration logging
+    print(f"[SCAN] start {start_time}")
     
     # Initialize scan debugger
     from engine.scan_debugger import get_scan_debugger
@@ -64,22 +77,38 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     features_found_total = 0
     alerts_sent_total = 0
     
+    # CHUNKING CONFIGURATION
+    CHUNK_SIZE = 100  # Process 100 symbols per scan tick
+    
+    # Get current cursor position
+    cursor = thread_repo.get_cursor(tg_user_id)
+    print(f"[SCAN] Current cursor position: {cursor}")
+    
+    # Get symbol chunk for this scan
+    chunk_symbols, next_cursor = get_symbol_chunk(symbols, cursor, CHUNK_SIZE)
+    print(f"[SCAN] Processing chunk: {len(chunk_symbols)} symbols (index {cursor}-{(cursor + CHUNK_SIZE - 1) % len(symbols)})")
+    print(f"[SCAN] First symbol: {chunk_symbols[0] if chunk_symbols else 'None'}")
+    print(f"[SCAN] Last symbol: {chunk_symbols[-1] if chunk_symbols else 'None'}")
+    
+    # Update cursor for next scan
+    thread_repo.set_cursor(tg_user_id, next_cursor)
+    
     # COLLECT ALL DECISIONS FIRST (don't send yet)
     all_raw_decisions = []
     
-    print(f"[SCAN-START] Expected to scan {expected_symbols} symbols")
+    print(f"[SCAN-START] Expected to scan {len(chunk_symbols)} symbols in this chunk")
     print(f"[DEBUG] Starting symbol loop...")
     
-    # SINGLE PASS - scan all symbols exactly once
+    # SINGLE PASS - scan chunk symbols exactly once
     symbol_counter = 0
-    for i, symbol in enumerate(symbols):
+    for i, symbol in enumerate(chunk_symbols):
         symbol_counter += 1
-        print(f"[DEBUG] Processing symbol {symbol_counter}/{expected_symbols}: {symbol}")
+        print(f"[DEBUG] Processing symbol {symbol_counter}/{len(chunk_symbols)}: {symbol}")
         
         # Progress logging every 25 symbols
         if i % 25 == 0 and i > 0:
-            print(f"[SCAN-PROGRESS] {i}/{expected_symbols} symbols processed. Last: {symbol}")
-            print(f"[DEBUG] Current position in loop: {i}/{len(symbols)}")
+            print(f"[SCAN-PROGRESS] {i}/{len(chunk_symbols)} chunk symbols processed. Last: {symbol}")
+            print(f"[DEBUG] Current position in chunk: {i}/{len(chunk_symbols)}")
         
         try:
             # Fetch all timeframes for bias calculation
@@ -326,8 +355,15 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     print(f"TOPICS: {' '.join([f'{k}={v}' for k, v in topic_counts.items()])}")
     print("==========================")
     
+    # Chunking-specific monitoring logs
+    print(f"[SCAN-END] total_symbols={len(symbols)} chunk_size={CHUNK_SIZE} start_idx={cursor} next_idx={next_cursor}")
+    print(f"[SCAN-END] candidates={total_candidates} unique_symbols={unique_symbols_candidates}")
+    print(f"[SCAN-END] selected={selected_count} unique_symbols_selected={unique_symbols_selected}")
+    print(f"[SCAN-END] topic_counts {' '.join([f'{k}={v}' for k, v in topic_counts.items()])}")
+    print(f"[SCAN-END] errors={scan_errors} duration={int(time.time() - start_time) if 'start_time' in locals() else 'unknown'}s")
+    
     # Scan completion summary
-    print(f"[SCAN-END] expected={expected_symbols} scanned={scanned_symbols} errors={scan_errors}")
+    print(f"[SCAN-END] expected={len(chunk_symbols)} scanned={scanned_symbols} errors={scan_errors}")
     print(debugger.generate_simple_summary())
     
     # CLEAN EXIT - no looping, single pass only
