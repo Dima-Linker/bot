@@ -127,9 +127,9 @@ phase1_selector = Phase1Selector()
 def get_phase1_selector() -> Phase1Selector:
     return phase1_selector
 
-def apply_phase1_selection(raw_decisions: List[Dict]) -> List[Dict]:
+def apply_phase1_selection(raw_decisions: List[Dict], repo=None, user_id: Optional[str] = None) -> List[Dict]:
     """Apply Phase 1 selection to raw decisions"""
     selector = get_phase1_selector()
-    return selector.select_signals_phase1(raw_decisions)
+    return selector.select_signals_phase1(raw_decisions, repo, user_id)
 
 __all__ = ['Phase1Selector', 'get_phase1_selector', 'apply_phase1_selection']
