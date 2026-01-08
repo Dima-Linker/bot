@@ -254,3 +254,37 @@ class Repo:
             (user_id, idx, now)
         )
         self.conn.commit()
+
+    # ---------- symbol rotation ----------
+    def get_last_sent(self, user_id: str, topic: str, symbol: str) -> Optional[int]:
+        """Get last sent timestamp for symbol in topic"""
+        cur = self.conn.execute(
+            '''SELECT last_sent_at FROM symbol_rotation 
+               WHERE user_id = ? AND topic = ? AND symbol = ?''',
+            (user_id, topic, symbol)
+        )
+        row = cur.fetchone()
+        return int(row['last_sent_at']) if row else None
+
+    def set_last_sent(self, user_id: str, topic: str, symbol: str, timestamp: Optional[int] = None) -> None:
+        """Set last sent timestamp for symbol in topic"""
+        if timestamp is None:
+            timestamp = int(time.time())
+        self.conn.execute(
+            '''INSERT INTO symbol_rotation(user_id, topic, symbol, last_sent_at) 
+               VALUES(?, ?, ?, ?) 
+               ON CONFLICT(user_id, topic, symbol) DO UPDATE SET 
+               last_sent_at=excluded.last_sent_at''',
+            (user_id, topic, symbol, timestamp)
+        )
+        self.conn.commit()
+
+    def can_send_symbol(self, user_id: str, topic: str, symbol: str, rotation_hours: int) -> bool:
+        """Check if symbol can be sent based on rotation policy"""
+        last_sent = self.get_last_sent(user_id, topic, symbol)
+        if last_sent is None:
+            return True
+        
+        now = int(time.time())
+        min_interval = rotation_hours * 3600  # Convert hours to seconds
+        return (now - last_sent) >= min_interval

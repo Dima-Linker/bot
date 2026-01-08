@@ -1,15 +1,25 @@
 #!/usr/bin/env python3
 """
-Phase 1 Selection System - Immediate Diversity Fix
+Phase 1 Selection System - Immediate Diversity Fix with Rotation
 Applies symbol and topic caps without changing modules/scoring
+Includes symbol rotation for better diversity over time
 """
 
 from typing import List, Dict, Optional
 from collections import defaultdict
 import json
 
+# Rotation policy (hours between same symbol in same topic)
+ROTATION_POLICY = {
+    'COMBO': 6,      # 6 hours
+    'IDEA': 3,       # 3 hours  
+    'FIBONACCI': 2,  # 2 hours
+    'LIQUIDITY': 2,  # 2 hours
+    'PUMP': 1        # 1 hour
+}
+
 class Phase1Selector:
-    """Simple selector for immediate diversity improvement"""
+    """Simple selector for immediate diversity improvement with rotation"""
     
     def __init__(self):
         # Phase 1 caps
@@ -44,9 +54,10 @@ class Phase1Selector:
             score = decision.get('score_total', 0)
             return 'COMBO' if score >= 300 else 'IDEA'
     
-    def select_signals_phase1(self, raw_decisions: List[Dict]) -> List[Dict]:
+    def select_signals_phase1(self, raw_decisions: List[Dict], repo=None, user_id: Optional[str] = None) -> List[Dict]:
         """
         Phase 1: Apply symbol and topic caps for immediate diversity
+        With optional rotation checking if repo and user_id provided
         """
         if not raw_decisions:
             return []
@@ -62,11 +73,20 @@ class Phase1Selector:
         symbol_selected = set()
         topic_counts = defaultdict(int)
         selected_decisions = []
+        rotation_skips = 0
         
         for decision in sorted_decisions:
             symbol = decision['symbol']
             topic = self.extract_topic_from_decision(decision)
             score = decision.get('score_total', 0)
+            
+            # Check rotation policy if repo is available
+            if repo and user_id:
+                rotation_hours = ROTATION_POLICY.get(topic, 2)
+                if not repo.can_send_symbol(user_id, topic, symbol, rotation_hours):
+                    print(f"[SELECTOR] Skipping {symbol} - rotation cooldown for {topic}")
+                    rotation_skips += 1
+                    continue
             
             # Apply symbol cap (max 1 per symbol)
             if symbol in symbol_selected:
@@ -88,10 +108,16 @@ class Phase1Selector:
             topic_counts[topic] += 1
             selected_decisions.append(decision)
             
+            # Update rotation tracking if repo available
+            if repo and user_id:
+                repo.set_last_sent(user_id, topic, symbol)
+            
             print(f"[SELECTOR] SELECTED {symbol} {decision['timeframe']} -> {topic} (score: {score})")
         
         print(f"[SELECTOR] Final selection: {len(selected_decisions)} signals")
         print(f"[SELECTOR] By topic: {dict(topic_counts)}")
+        if rotation_skips > 0:
+            print(f"[SELECTOR] Rotation skips: {rotation_skips}")
         
         return selected_decisions
 

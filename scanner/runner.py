@@ -240,10 +240,10 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     print(f"[DEBUG] Expected symbols: {expected_symbols}")
     print(f"[DEBUG] Raw decisions collected: {len(all_raw_decisions)}")
     
-    # PHASE 1: SELECTION ENGINE - Apply diversity controls
+    # PHASE 1: SELECTION ENGINE - Apply diversity controls with rotation
     print(f"[SELECTION] Processing {len(all_raw_decisions)} raw candidates")
     
-    selected_decisions = apply_phase1_selection(all_raw_decisions)
+    selected_decisions = apply_phase1_selection(all_raw_decisions, thread_repo, tg_user_id)
     
     print(f"[SELECTION] Selected {len(selected_decisions)} signals for sending")
     

@@ -61,3 +61,12 @@ CREATE TABLE IF NOT EXISTS scan_cursor (
   idx INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
+
+-- Symbol rotation table for diversity control
+CREATE TABLE IF NOT EXISTS symbol_rotation (
+  user_id TEXT NOT NULL,
+  topic TEXT NOT NULL,
+  symbol TEXT NOT NULL,
+  last_sent_at INTEGER NOT NULL,
+  PRIMARY KEY (user_id, topic, symbol)
+);
