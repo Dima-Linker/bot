@@ -34,39 +34,38 @@ class Phase1Selector:
         self.GLOBAL_MAX = 18  # Reduced from 20 for better quality focus
     
     def extract_topic_from_decision(self, decision: Dict) -> str:
-        """Extract correct topic from decision object"""
+        """Extract correct topic from decision object - STRICT separation"""
         signal_type = decision.get('type', '').upper()
         message_type = decision.get('message_type', '').upper()
-        score = decision.get('score_total', 0)
-        reasons = decision.get('reasons', [])
         
-        # Priority: explicit message type > signal type
-        if 'TRADE' in message_type or signal_type == 'COMBO':
-            # Check if this is actually a strong Fibonacci signal misclassified as COMBO
-            fib_indicators = sum(1 for reason in reasons if 'fib' in reason.lower() or 'golden' in reason.lower())
-            if fib_indicators >= 2 and score >= 350:
-                return 'FIBONACCI'
+        # STRICT RULES - no mixing of real trades with alerts
+        # COMBO = Real trades (high conviction setups)
+        # FIBONACCI = Analysis alerts/heads-up only
+        # IDEA = Watchlist entries
+        
+        if message_type == 'FIB_ALERT':
+            # Pure Fibonacci alerts - ALWAYS go to FIBONACCI topic
+            return 'FIBONACCI'
+        elif 'TRADE' in message_type or signal_type == 'COMBO':
+            # REAL TRADE SIGNALS - ALWAYS stay in COMBO topic
+            # Even if they have strong Fibonacci components
             return 'COMBO'
         elif 'WATCHLIST' in message_type or signal_type == 'IDEA':
             return 'IDEA'
-        elif 'FIB' in signal_type:
+        elif signal_type == 'FIBONACCI':
+            # Pure Fibonacci alerts only
             return 'FIBONACCI'
-        elif 'SMC' in signal_type or 'LIQ' in signal_type:
+        elif signal_type == 'LIQUIDITY':
             return 'LIQUIDITY'
-        elif 'PUMP' in signal_type:
+        elif signal_type == 'PUMP':
             return 'PUMP'
         else:
-            # Enhanced fallback logic based on score and content
-            fib_indicators = sum(1 for reason in reasons if 'fib' in reason.lower() or 'golden' in reason.lower())
-            
-            if fib_indicators >= 2 and score >= 320:
-                return 'FIBONACCI'
-            elif score >= 350:
+            # Fallback - but don't promote to COMBO
+            score = decision.get('score_total', 0)
+            if score >= 350:
                 return 'COMBO'
-            elif score >= 250:
-                return 'IDEA'
             else:
-                return 'IDEA'  # Default to IDEA for lower scores
+                return 'IDEA'
     
     def select_signals_phase1(self, raw_decisions: List[Dict], repo=None, user_id: Optional[str] = None) -> List[Dict]:
         """

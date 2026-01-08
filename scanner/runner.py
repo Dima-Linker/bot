@@ -211,7 +211,26 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
             
             # Decision making
             if features:
-                # Use the new state-based decision engine with IDEA vs TRADE
+                # Check for pure Fibonacci alerts first
+                fib_features = [f for f in features if f.module == 'fibonacci']
+                if fib_features and len(fib_features) >= 2:
+                    # Create pure Fibonacci alert
+                    fib_alert = {
+                        'symbol': symbol,
+                        'timeframe': tf,
+                        'type': 'FIBONACCI',  # Explicit FIBONACCI type
+                        'message_type': 'FIB_ALERT',  # Dedicated alert type
+                        'score_total': sum(f.score for f in fib_features[:2]),  # Sum top 2 fib scores
+                        'side': fib_features[0].direction,
+                        'reasons': [f.reasons[0] if f.reasons else f"Golden Zone touch at {f.levels.get('actual_level', 'N/A')}" for f in fib_features[:2]],
+                        'levels': {k: v for f in fib_features for k, v in f.levels.items()},
+                        'setup_id': f"fib_{symbol}_{tf}_{int(time.time())}"
+                    }
+                    print(f"[FIB-ALERT] {symbol} {tf} score={fib_alert['score_total']}")
+                    all_raw_decisions.append(fib_alert)
+                    continue  # Skip regular decision logic for pure fib alerts
+                
+                # Use the new state-based decision engine with IDEA vs TRADE for non-Fib setups
                 decision = decide_signal_with_states(features, combo_min_score, thread_repo, tg_user_id, settings.get('preset', 'normal'))
                 if decision:
                     print(f"decision {decision['type'] if decision else None} {decision.get('score_total') if decision else None}")
