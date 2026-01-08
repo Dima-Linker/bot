@@ -270,10 +270,12 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     print(f"[DEBUG-COUNT] decisions_found: combo={decisions_combo} idea={decisions_idea}")
     print(f"[DEBUG-COUNT] alerts_found: fib_alert={alerts_fib} liq_alert={alerts_liq} pump_alert={alerts_pump}")
     
-    # PHASE 1: SELECTION ENGINE - Apply diversity controls
-    print(f"[SELECTION] Processing {len(all_raw_decisions)} raw candidates")
+    # TEMPORARY: Bypass selection to debug - send ALL raw decisions
+    print(f"[DEBUG] BYPASSING SELECTION - sending ALL {len(all_raw_decisions)} raw decisions")
+    selected_decisions = all_raw_decisions[:]  # Make a copy
     
-    selected_decisions = apply_phase1_selection(all_raw_decisions, thread_repo, tg_user_id)
+    # Alternative: Very loose selection (comment out if above works)
+    # selected_decisions = apply_phase1_selection(all_raw_decisions, thread_repo, tg_user_id)
     
     print(f"[SELECTION] Selected {len(selected_decisions)} signals for sending")
     
