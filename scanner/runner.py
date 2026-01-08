@@ -260,12 +260,29 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     print(f"[DEBUG] Expected symbols: {expected_symbols}")
     print(f"[DEBUG] Raw decisions collected: {len(all_raw_decisions)}")
     
-    # PHASE 1: SELECTION ENGINE - Apply diversity controls with rotation
+    # CATEGORIZATION DEBUG - prove the separation rules
+    decisions_combo = len([d for d in all_raw_decisions if d.get('type') == 'COMBO'])
+    decisions_idea = len([d for d in all_raw_decisions if d.get('type') == 'IDEA'])
+    alerts_fib = len([d for d in all_raw_decisions if d.get('message_type') == 'FIB_ALERT'])
+    alerts_liq = len([d for d in all_raw_decisions if d.get('type') == 'LIQUIDITY'])
+    alerts_pump = len([d for d in all_raw_decisions if d.get('type') == 'PUMP'])
+    
+    print(f"[DEBUG-COUNT] decisions_found: combo={decisions_combo} idea={decisions_idea}")
+    print(f"[DEBUG-COUNT] alerts_found: fib_alert={alerts_fib} liq_alert={alerts_liq} pump_alert={alerts_pump}")
+    
+    # PHASE 1: SELECTION ENGINE - Apply diversity controls
     print(f"[SELECTION] Processing {len(all_raw_decisions)} raw candidates")
     
     selected_decisions = apply_phase1_selection(all_raw_decisions, thread_repo, tg_user_id)
     
     print(f"[SELECTION] Selected {len(selected_decisions)} signals for sending")
+    
+    # PROOF LOGS - show what gets selected per category
+    selected_combo = len([d for d in selected_decisions if d.get('type') == 'COMBO'])
+    selected_idea = len([d for d in selected_decisions if d.get('type') == 'IDEA'])
+    selected_fib = len([d for d in selected_decisions if d.get('message_type') == 'FIB_ALERT'])
+    
+    print(f"[DEBUG-SELECTED] selected: combo={selected_combo} idea={selected_idea} fib_alert={selected_fib}")
     
     # SEND ONLY SELECTED DECISIONS
     print(f"[DEBUG] Starting to send {len(selected_decisions)} selected decisions...")
@@ -274,6 +291,11 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
         
         symbol = decision['symbol']
         tf = decision['timeframe']
+        
+        # PROOF LOG - critical for verification
+        signal_kind = decision.get('type', 'UNKNOWN')
+        message_type = decision.get('message_type', 'UNKNOWN')
+        print(f"[SEND-PROOF] kind={signal_kind} message_type={message_type} symbol={symbol} tf={tf}")
         
         # Build and send message (existing logic)
         message = build_message(symbol, tf, decision)
@@ -321,7 +343,11 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
         chart_path = None  # Placeholder - would need to reconstruct
         
         # Handle cooldown differently based on message type
-        if decision.get('message_type') == 'WATCHLIST':
+        if decision.get('message_type') == 'FIB_ALERT':
+            # FIB alerts get their own cooldown logic
+            cooldown_key = f"fib_alert:{symbol}:{tf}"
+            current_cooldown = 90 * 60  # 90 minutes base cooldown
+        elif decision.get('message_type') == 'WATCHLIST':
             cooldown_key = f"idea:{symbol}:{tf}:{decision.get('setup_id', '')}"
             current_cooldown = 30 * 60  # 30 minutes for IDEA
         elif decision.get('message_type') == 'TRADE_FREIGABE':
@@ -374,13 +400,6 @@ def run_scan_for_user(repo, tg_user_id: str, bitget, telegram_send_fn, modules_r
     print(f"SELECTED: total={selected_count}, unique_symbols={unique_symbols_selected}")
     print(f"TOPICS: {' '.join([f'{k}={v}' for k, v in topic_counts.items()])}")
     print("==========================")
-    
-    # Chunking-specific monitoring logs
-    print(f"[SCAN-END] total_symbols={len(symbols)} chunk_size={CHUNK_SIZE} start_idx={cursor} next_idx={next_cursor}")
-    print(f"[SCAN-END] candidates={total_candidates} unique_symbols={unique_symbols_candidates}")
-    print(f"[SCAN-END] selected={selected_count} unique_symbols_selected={unique_symbols_selected}")
-    print(f"[SCAN-END] topic_counts {' '.join([f'{k}={v}' for k, v in topic_counts.items()])}")
-    print(f"[SCAN-END] errors={scan_errors} duration={int(time.time() - start_time) if 'start_time' in locals() else 'unknown'}s")
     
     # Scan completion summary
     print(f"[SCAN-END] expected={len(chunk_symbols)} scanned={scanned_symbols} errors={scan_errors}")
