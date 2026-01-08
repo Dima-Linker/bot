@@ -61,35 +61,33 @@ def main():
             users = [os.getenv("CHAT_ID", "<DEIN_TG_USER_ID>")]  # Changed from TELEGRAM_CHAT_ID to CHAT_ID to match .env
             for u in users:
                 if u and u != "<DEIN_TG_USER_ID>":
+                    # Import the new routing system
+                    from engine.telegram_sender import get_telegram_sender
+                    
                     def telegram_send_fn(chat_id: str, text: str, **kwargs):
-                        """Send message via Telegram bot"""
-                        # Extract optional chart_path from kwargs
+                        """Send message via Telegram bot with hard topic routing"""
+                        # Extract parameters
                         chart_path = kwargs.pop('chart_path', None)
+                        signal_data = kwargs.pop('signal_data', {})
                         
-                        # Actually send the message
-                        async def send_msg():
+                        # Use the new async sender with hard routing
+                        async def send_with_routing():
                             try:
-                                if chart_path and os.path.exists(chart_path):
-                                    # Send chart with caption
-                                    with open(chart_path, 'rb') as chart_file:
-                                        await application.bot.send_photo(
-                                            chat_id=chat_id, 
-                                            photo=chart_file,
-                                            caption=text
-                                        )
+                                sender = get_telegram_sender()
+                                result = await sender.send_message(text, signal_data, chart_path)
+                                if result:
+                                    print(f"✅ Nachricht mit Routing erfolgreich gesendet")
                                 else:
-                                    # Send text message only
-                                    await application.bot.send_message(chat_id=chat_id, text=text, **kwargs)
-                                print(f"✅ Nachricht erfolgreich an {chat_id} gesendet")
+                                    print(f"❌ Fehler beim Senden der Nachricht mit Routing")
                             except Exception as e:
-                                print(f"❌ Fehler beim Senden der Nachricht: {e}")
+                                print(f"❌ Fehler im Routing-Sender: {e}")
                         
-                        # Run the async function in a new event loop
+                        # Run in thread with proper async handling
                         import threading
                         def run_in_thread():
                             try:
                                 import asyncio
-                                asyncio.run(send_msg())
+                                asyncio.run(send_with_routing())
                             except RuntimeError as e:
                                 print(f"Fehler im Nachrichtenversand-Thread: {e}")
                         
